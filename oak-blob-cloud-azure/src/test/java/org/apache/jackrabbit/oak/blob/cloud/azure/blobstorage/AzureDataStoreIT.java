@@ -18,6 +18,7 @@ package org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage;
 
 import static org.apache.commons.codec.binary.Hex.encodeHexString;
 import static org.apache.commons.io.FileUtils.copyInputStreamToFile;
+import static org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureDataStoreUtils.isAzureConfigured;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -76,12 +77,12 @@ import javax.jcr.RepositoryException;
 /**
  * Test {@link AzureDataStore} with AzureDataStore and local cache on.
  * It requires to pass azure config file via system property or system properties by prefixing with 'ds.'.
- * See details @ {@link AzureDataStoreUtils}.
+ * See details @ {@link TestAzureDataStoreUtils}.
  * For e.g. -Dconfig=/opt/cq/azure.properties. Sample azure properties located at
  * src/test/resources/azure.properties
  */
-public class AzureDataStoreTest {
-    protected static final Logger LOG = LoggerFactory.getLogger(AzureDataStoreTest.class);
+public class AzureDataStoreIT {
+    protected static final Logger LOG = LoggerFactory.getLogger(AzureDataStoreIT.class);
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder(new File("target"));
@@ -89,28 +90,36 @@ public class AzureDataStoreTest {
     private Properties props;
     private static byte[] testBuffer = "test".getBytes();
     private AzureDataStore ds;
-    private AzureBlobStoreBackend backend;
+    private AbstractAzureBlobStoreBackend backend;
     private String container;
     Random randomGen = new Random();
 
+    public AzureDataStoreIT() {}
+
     @BeforeClass
     public static void assumptions() {
-        assumeTrue(AzureDataStoreUtils.isAzureConfigured());
+        assumeTrue(isAzureConfigured());
     }
 
     @Before
-    public void setup() throws IOException, RepositoryException, URISyntaxException, InvalidKeyException, StorageException {
+    public void setup() throws IOException, RepositoryException, URISyntaxException, InvalidKeyException, StorageException, NoSuchFieldException {
+
+        System.setProperty("blob.azure.v12.enabled", "true");
 
         props = AzureDataStoreUtils.getAzureConfig();
-        container = String.valueOf(randomGen.nextInt(9999)) + "-" + String.valueOf(randomGen.nextInt(9999))
+        container = randomGen.nextInt(9999) + "-" + randomGen.nextInt(9999)
                     + "-test";
         props.setProperty(AzureConstants.AZURE_BLOB_CONTAINER_NAME, container);
+        props.setProperty(AzureConstants.AZURE_STORAGE_ACCOUNT_NAME, AzuriteDockerRule.ACCOUNT_NAME);
+        props.setProperty(AzureConstants.AZURE_STORAGE_ACCOUNT_KEY, AzuriteDockerRule.ACCOUNT_KEY);
 
         ds = new AzureDataStore();
+
         ds.setProperties(props);
         ds.setCacheSize(0);  // Turn caching off so we don't get weird test results due to caching
         ds.init(folder.newFolder().getAbsolutePath());
         backend = (AzureBlobStoreBackend) ds.getBackend();
+
     }
 
     @After
@@ -121,64 +130,10 @@ public class AzureDataStoreTest {
         } catch (Exception ignore) {}
     }
 
-    private void validateRecord(final DataRecord record,
-                                final String contents,
-                                final DataRecord rhs)
-            throws DataStoreException, IOException {
-        validateRecord(record, contents, rhs.getIdentifier(), rhs.getLength(), rhs.getLastModified());
-    }
-
-    private void validateRecord(final DataRecord record,
-                                final String contents,
-                                final DataIdentifier identifier,
-                                final long length,
-                                final long lastModified)
-            throws DataStoreException, IOException {
-        validateRecord(record, contents, identifier, length, lastModified, true);
-    }
-
-    private void validateRecord(final DataRecord record,
-                                final String contents,
-                                final DataIdentifier identifier,
-                                final long length,
-                                final long lastModified,
-                                final boolean lastModifiedEquals)
-            throws DataStoreException, IOException {
-        assertEquals(record.getLength(), length);
-        if (lastModifiedEquals) {
-            assertEquals(record.getLastModified(), lastModified);
-        } else {
-            assertTrue(record.getLastModified() > lastModified);
-        }
-        assertTrue(record.getIdentifier().toString().equals(identifier.toString()));
-        StringWriter writer = new StringWriter();
-        org.apache.commons.io.IOUtils.copy(record.getStream(), writer, "utf-8");
-        assertTrue(writer.toString().equals(contents));
-    }
-
-    private static InputStream randomStream(int seed, int size) {
-        Random r = new Random(seed);
-        byte[] data = new byte[size];
-        r.nextBytes(data);
-        return new ByteArrayInputStream(data);
-    }
-
-    private static String getIdForInputStream(final InputStream in)
-            throws NoSuchAlgorithmException, IOException {
-        MessageDigest digest = MessageDigest.getInstance("SHA-1");
-        OutputStream output = new DigestOutputStream(new NullOutputStream(), digest);
-        try {
-            IOUtils.copyLarge(in, output);
-        } finally {
-            IOUtils.closeQuietly(output);
-            IOUtils.closeQuietly(in);
-        }
-        return encodeHexString(digest.digest());
-    }
-
-
     @Test
     public void testCreateAndDeleteBlobHappyPath() throws DataStoreException, IOException {
+        assumeTrue(isAzureConfigured());
+
         final DataRecord uploadedRecord = ds.addRecord(new ByteArrayInputStream(testBuffer));
         DataIdentifier identifier = uploadedRecord.getIdentifier();
         assertTrue(backend.exists(identifier));
@@ -191,7 +146,6 @@ public class AzureDataStoreTest {
         ds.deleteRecord(identifier);
         assertFalse(backend.exists(uploadedRecord.getIdentifier()));
     }
-
 
     @Test
     public void testCreateAndReUploadBlob() throws DataStoreException, IOException {
@@ -743,5 +697,60 @@ public class AzureDataStoreTest {
         LOG.warn("Ref direct from backend {}", refDirectFromBackend);
         assertTrue("refKey in memory not equal to the metadata record",
             Arrays.equals(refKey, refDirectFromBackend));
+    }
+
+    private void validateRecord(final DataRecord record,
+                                final String contents,
+                                final DataRecord rhs)
+            throws DataStoreException, IOException {
+        validateRecord(record, contents, rhs.getIdentifier(), rhs.getLength(), rhs.getLastModified());
+    }
+
+    private void validateRecord(final DataRecord record,
+                                final String contents,
+                                final DataIdentifier identifier,
+                                final long length,
+                                final long lastModified)
+            throws DataStoreException, IOException {
+        validateRecord(record, contents, identifier, length, lastModified, true);
+    }
+
+    private void validateRecord(final DataRecord record,
+                                final String contents,
+                                final DataIdentifier identifier,
+                                final long length,
+                                final long lastModified,
+                                final boolean lastModifiedEquals)
+            throws DataStoreException, IOException {
+        assertEquals(record.getLength(), length);
+        if (lastModifiedEquals) {
+            assertEquals(record.getLastModified(), lastModified);
+        } else {
+            assertTrue(record.getLastModified() > lastModified);
+        }
+        assertTrue(record.getIdentifier().toString().equals(identifier.toString()));
+        StringWriter writer = new StringWriter();
+        org.apache.commons.io.IOUtils.copy(record.getStream(), writer, "utf-8");
+        assertTrue(writer.toString().equals(contents));
+    }
+
+    private static InputStream randomStream(int seed, int size) {
+        Random r = new Random(seed);
+        byte[] data = new byte[size];
+        r.nextBytes(data);
+        return new ByteArrayInputStream(data);
+    }
+
+    private static String getIdForInputStream(final InputStream in)
+            throws NoSuchAlgorithmException, IOException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-1");
+        OutputStream output = new DigestOutputStream(new NullOutputStream(), digest);
+        try {
+            IOUtils.copyLarge(in, output);
+        } finally {
+            IOUtils.closeQuietly(output);
+            IOUtils.closeQuietly(in);
+        }
+        return encodeHexString(digest.digest());
     }
 }

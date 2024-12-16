@@ -28,6 +28,7 @@ import org.apache.jackrabbit.core.data.DataStoreException;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureConstants;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureDataStore;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.Utils;
+import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.v8.UtilsV8;
 import org.apache.jackrabbit.oak.fixture.NodeStoreFixture;
 import org.apache.jackrabbit.oak.jcr.binary.fixtures.nodestore.FixtureUtils;
 import org.jetbrains.annotations.NotNull;
@@ -94,7 +95,7 @@ public class AzureDataStoreFixture implements DataStoreFixture {
 
         String connectionString = Utils.getConnectionStringFromProperties(azProps);
         try {
-            CloudBlobContainer container = Utils.getBlobContainer(connectionString, containerName);
+            CloudBlobContainer container = UtilsV8.getBlobContainer(connectionString, containerName);
             container.createIfNotExists();
 
             // create new properties since azProps is shared for all created DataStores

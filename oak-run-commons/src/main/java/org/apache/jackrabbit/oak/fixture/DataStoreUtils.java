@@ -32,6 +32,7 @@ import org.apache.jackrabbit.guava.common.base.Strings;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureBlobContainerProvider;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureConstants;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureDataStore;
+import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.v8.AzureBlobContainerProviderV8;
 import org.apache.jackrabbit.oak.blob.cloud.s3.S3Constants;
 import org.apache.jackrabbit.oak.blob.cloud.s3.S3DataStore;
 import org.apache.jackrabbit.oak.blob.cloud.s3.Utils;
@@ -188,7 +189,7 @@ public class DataStoreUtils {
             return null;
         }
 
-        try (AzureBlobContainerProvider azureBlobContainerProvider = AzureBlobContainerProvider.Builder.builder(containerName)
+        try (AzureBlobContainerProviderV8 azureBlobContainerProvider = AzureBlobContainerProviderV8.Builder.builder(containerName)
                 .withAzureConnectionString(azureConnectionString)
                 .withAccountName(accountName)
                 .withClientId(clientId)

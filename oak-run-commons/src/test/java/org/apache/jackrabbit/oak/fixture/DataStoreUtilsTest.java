@@ -29,6 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureBlobContainerProvider;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzureConstants;
 import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.AzuriteDockerRule;
+import org.apache.jackrabbit.oak.blob.cloud.azure.blobstorage.v8.AzureBlobContainerProviderV8;
 import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Assume;
@@ -151,7 +152,7 @@ public class DataStoreUtilsTest {
         Assume.assumeNotNull(tenantId);
 
         CloudBlobContainer container;
-        try (AzureBlobContainerProvider azureBlobContainerProvider = AzureBlobContainerProvider.Builder.builder(CONTAINER_NAME)
+        try (AzureBlobContainerProviderV8 azureBlobContainerProvider = AzureBlobContainerProviderV8.Builder.builder(CONTAINER_NAME)
                 .withAccountName(accountName)
                 .withClientId(clientId)
                 .withClientSecret(clientSecret)
